@@ -1,5 +1,6 @@
 # For state management
 from langchain.messages import AnyMessage
+from langgraph.checkpoint.memory import InMemorySaver
 from typing_extensions import TypedDict, Annotated
 import operator
 
@@ -81,6 +82,6 @@ def getAgent(model, tools):
     agent_builder.add_edge("tool_node", "llm_call")
 
     # Compile the agent
-    agent = agent_builder.compile()
+    agent = agent_builder.compile(checkpointer=InMemorySaver())
 
     return agent
