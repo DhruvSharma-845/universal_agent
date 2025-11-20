@@ -1,5 +1,7 @@
 from agent_manager import initialize_agent, get_agent, get_config
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware 
+
 from langchain.messages import HumanMessage
 
 from contextlib import asynccontextmanager
@@ -18,6 +20,15 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],  # Your frontend origin
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
+)
 
 
 @app.get("/")
