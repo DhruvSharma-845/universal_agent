@@ -1,6 +1,6 @@
 # For state management
 from langchain.messages import AnyMessage
-from langgraph.checkpoint.memory import InMemorySaver
+from langchain_core.messages import trim_messages
 from typing_extensions import TypedDict, Annotated
 import operator
 
@@ -31,6 +31,17 @@ def getLLMCallWithModel(model_with_tools):
     def llm_call(state: dict):
         """LLM decides whether to call a tool or not"""
 
+        # Trim messages to stay under token limit
+        # Keep the most recent messages that fit within max_tokens
+        trimmed_messages = trim_messages(
+            state["messages"],
+            max_tokens=64000,  # Adjust based on your model's context window
+            strategy="last",  # Keep the most recent messages
+            token_counter=model_with_tools,  # Use the model to count tokens
+            include_system=False,  # System message handled separately
+            allow_partial=False,  # Don't cut messages in half
+        )
+
         return {
             "messages": [
                 model_with_tools.invoke(
@@ -39,7 +50,7 @@ def getLLMCallWithModel(model_with_tools):
                             content="You are a helpful assistant tasked with performing operations on a private documentation tool: Adobe Wiki. Use the tools provided to you to perform the operations."
                         )
                     ]
-                    + state["messages"]
+                    + trimmed_messages
                 )
             ],
             "llm_calls": state.get('llm_calls', 0) + 1
@@ -61,7 +72,7 @@ def getToolNode(tools):
     return tool_node
 
 
-def getAgent(model, tools):
+def getAgent(model, tools, checkpointer):
 
     model_with_tools = model.bind_tools(tools)
 
@@ -82,6 +93,6 @@ def getAgent(model, tools):
     agent_builder.add_edge("tool_node", "llm_call")
 
     # Compile the agent
-    agent = agent_builder.compile(checkpointer=InMemorySaver())
+    agent = agent_builder.compile(checkpointer=checkpointer)
 
     return agent
