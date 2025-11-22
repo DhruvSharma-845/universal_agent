@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import StreamingResponse
 
 from app_bootstrapper import bootstrap_app, destroy_app
-from conversation_service import chat_with_agent, chat_with_agent_stream_generator, get_conversation_history_from_agent
+from conversation_service import chat_with_agent, chat_with_agent_stream_generator, get_all_conversation_ids, get_conversation_history_from_agent
 from dto import ChatRequest, ConversationHistory
 from utils import get_messages_details
 
@@ -50,6 +50,14 @@ async def universal_agent_chat_stream(request: ChatRequest) -> StreamingResponse
             "Connection": "keep-alive",
             }
         )
+
+@app.get("/api/conversations")
+async def list_all_conversations() -> dict:
+    # try:
+        thread_ids = await get_all_conversation_ids()
+        return {"threads": thread_ids, "count": len(thread_ids)}
+    # except Exception as e:
+        # raise HTTPException(status_code=500, detail=f"Error listing conversations: {str(e)}")
 
 @app.get("/api/conversations/{thread_id}")
 async def get_conversation_history(thread_id: str) -> ConversationHistory:

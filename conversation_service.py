@@ -1,7 +1,7 @@
 import json
 from langchain.messages import HumanMessage
 
-from agent_manager import get_agent
+from agent_manager import get_agent, get_checkpointer
 from dto import ConversationHistory
 from utils import get_messages_details
 
@@ -41,9 +41,17 @@ async def chat_with_agent_stream_generator(thread_id: str, input_messages: list[
             yield f"data: {conv_history.model_dump_json()}\n\n"
         
     except Exception as e:
-        print(e)
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
     
+async def get_all_conversation_ids() ->list[str]:
+    thread_ids = set()
+    # List all checkpoints and extract unique thread_ids
+    async for checkpoint_tuple in get_checkpointer().alist(None):
+        config = checkpoint_tuple.config
+        if config and "configurable" in config and "thread_id" in config["configurable"]:
+            thread_ids.add(config["configurable"]["thread_id"])
+    
+    return sorted(list(thread_ids))
 
 async def get_conversation_history_from_agent(thread_id: str) -> ConversationHistory:
     config = {"configurable": {"thread_id": thread_id}}

@@ -110,6 +110,9 @@ def get_tools():
     """Get the tools instance"""
     return _manager.tools
 
+def get_checkpointer():
+    """Get the checkpointer instance"""
+    return _manager.checkpointer
 
 def is_agent_initialized() -> bool:
     """Check if agent is initialized"""
