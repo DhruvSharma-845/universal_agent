@@ -35,10 +35,16 @@ async def chat_with_agent_stream_generator(thread_id: str, input_messages: list[
     
     try:
         async for chunk in get_agent().astream({"messages": conversation_messages}, config, stream_mode="updates"):
-            print(chunk)
-            messages = get_messages_details(chunk["llm_call"]["messages"] if "llm_call" in chunk else chunk["tool_node"]["messages"], thread_id)
-            conv_history = ConversationHistory(thread_id=thread_id, messages=messages)
-            yield f"data: {conv_history.model_dump_json()}\n\n"
+            messages = []
+            if "llm_call" in chunk:
+                messages = chunk["llm_call"]["messages"]
+            elif "tool_node" in chunk:
+                messages = chunk["tool_node"]["messages"]
+            
+            if len(messages) > 0:
+                messages = get_messages_details(messages, thread_id)
+                conv_history = ConversationHistory(thread_id=thread_id, messages=messages)
+                yield f"data: {conv_history.model_dump_json()}\n\n"
         
     except Exception as e:
         yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"

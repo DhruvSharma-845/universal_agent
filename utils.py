@@ -21,3 +21,31 @@ def get_messages_details(conv_messages, thread_id):
             "content": content,
         })
     return messages
+
+def convert_arg_types(value):
+    """Convert string representations to proper types"""
+    if not isinstance(value, str):
+        return value
+    
+    # Handle booleans
+    if value.lower() == 'true':
+        return True
+    elif value.lower() == 'false':
+        return False
+    
+    # Handle integers
+    try:
+        if value.isdigit() or (value.startswith('-') and value[1:].isdigit()):
+            return int(value)
+    except (ValueError, AttributeError):
+        pass
+    
+    # Handle floats
+    try:
+        if '.' in value:
+            return float(value)
+    except ValueError:
+        pass
+    
+    # Return as-is if no conversion needed
+    return value
