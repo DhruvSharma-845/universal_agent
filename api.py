@@ -38,12 +38,12 @@ def index():
 
 @app.post("/api/universal-agent/chat")
 async def universal_agent_chat(request: ChatRequest) -> ConversationHistory:
-    return await chat_with_agent(request.thread_id, request.messages)
+    return await chat_with_agent(request.thread_id, request.messages, request.user_id)
 
 @app.post("/api/universal-agent/chat/stream")
 async def universal_agent_chat_stream(request: ChatRequest) -> StreamingResponse:
     return StreamingResponse(
-        chat_with_agent_stream_generator(request.thread_id, request.messages),
+        chat_with_agent_stream_generator(request.thread_id, request.messages, request.user_id),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
@@ -52,17 +52,17 @@ async def universal_agent_chat_stream(request: ChatRequest) -> StreamingResponse
         )
 
 @app.get("/api/conversations")
-async def list_all_conversations() -> dict:
+async def list_all_conversations(user_id: str) -> dict:
     # try:
-        thread_ids = await get_all_conversation_ids()
+        thread_ids = await get_all_conversation_ids(user_id)
         return {"threads": thread_ids, "count": len(thread_ids)}
     # except Exception as e:
         # raise HTTPException(status_code=500, detail=f"Error listing conversations: {str(e)}")
 
 @app.get("/api/conversations/{thread_id}")
-async def get_conversation_history(thread_id: str) -> ConversationHistory:
+async def get_conversation_history(thread_id: str, user_id: str) -> ConversationHistory:
     try:
-        return await get_conversation_history_from_agent(thread_id)
+        return await get_conversation_history_from_agent(thread_id, user_id)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving conversation: {str(e)}")
 

@@ -8,6 +8,9 @@ from langchain_ollama import OllamaEmbeddings
 from tools import getTools
 import uuid
 
+from utils import getValueFromConfig
+
+
 class _ToolsManager:
     """Internal tools manager (not exposed directly)"""
     
@@ -24,7 +27,9 @@ class _ToolsManager:
             if not self._initialized:
                 print("Initializing Tools...")
 
-                embeddings = OllamaEmbeddings(model="nomic-embed-text")
+                semantic_search_embeddings_model = getValueFromConfig("tools", "semantic_search_embeddings_model")
+
+                embeddings = OllamaEmbeddings(model=semantic_search_embeddings_model)
                 self._vector_store = InMemoryVectorStore(embeddings)
                 
                 self._tools = await getTools()
@@ -90,12 +95,8 @@ def get_tool_registry():
 
 def get_tools_by_query(query: str):
     """Get the tools by query"""
-    config_path = "config.toml"
-    config = {}
-    with open(config_path, "rb") as f:
-        config = tomllib.load(f)
-    tools_config = config.get("tools", {})
-    if "semantic_search_enabled" in tools_config and tools_config["semantic_search_enabled"] == "true":
+    semantic_search_enabled = getValueFromConfig("tools", "semantic_search_enabled")
+    if semantic_search_enabled == "true":
         # vector store would have been created till now
         # in the app boostrap
         documents =_manager.vector_store.similarity_search(query)

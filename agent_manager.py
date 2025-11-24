@@ -1,7 +1,7 @@
 import asyncio
-from typing import Optional
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
+from memory_store import get_memory_store
 from model import getModel
 from tools import getTools
 from agent import getAgent
@@ -17,6 +17,7 @@ class _AgentManager:
         self._initialized = False
         self._checkpointer = None 
         self._checkpointer_context = None
+        self._memory_store = None
         self._lock = asyncio.Lock()
     
     async def initialize(self):
@@ -31,7 +32,8 @@ class _AgentManager:
                 
                 self._model = getModel()
                 self._tools = await getTools()
-                self._agent = getAgent(self._model, self._tools, self._checkpointer)
+                self._memory_store = get_memory_store()
+                self._agent = getAgent(self._model, self._tools, self._checkpointer, self._memory_store)
 
                 
                 self._initialized = True
@@ -53,6 +55,7 @@ class _AgentManager:
                     self._model = None
                     self._tools = None
                     self._initialized = False
+                    self._memory_store = None
                     print("Cleanup complete!")
 
     @property

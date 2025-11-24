@@ -1,4 +1,6 @@
 from langchain.messages import HumanMessage, ToolMessage
+import tomllib
+
 def get_messages_details(conv_messages, thread_id):
     # Extract and format messages
     messages = []
@@ -49,3 +51,11 @@ def convert_arg_types(value):
     
     # Return as-is if no conversion needed
     return value
+
+def getValueFromConfig(root_key, key):
+    config_path = "config.toml"
+    config = {}
+    with open(config_path, "rb") as f:
+        config = tomllib.load(f)
+    tools_config = config.get(root_key, {})
+    return tools_config[key] if key in tools_config else None

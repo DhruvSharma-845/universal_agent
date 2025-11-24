@@ -66,6 +66,6 @@ async def getTools():
     mathematical_tools = [add_numbers, multiply]
     tools.extend(mathematical_tools)
 
-    tools.append(getWikipediaTool())
+    # tools.append(getWikipediaTool())
 
     return tools

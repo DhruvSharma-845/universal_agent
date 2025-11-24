@@ -1,6 +1,7 @@
 # For state management
-from langchain.messages import AnyMessage
+from langchain.messages import AnyMessage, HumanMessage
 from langchain_core.messages import trim_messages
+from langchain_core.runnables import RunnableConfig
 from typing_extensions import TypedDict, Annotated
 import operator
 
@@ -11,14 +12,16 @@ from typing import Literal
 from langchain.messages import SystemMessage, ToolMessage
 
 from tools_manager import get_tool_registry, get_tools_by_query
+from memory_store import getMemoriesForUserBasedOnQuery, updateMemoryForUser
 from utils import convert_arg_types
 
 class MessagesState(TypedDict):
     messages: Annotated[list[AnyMessage], operator.add]
     llm_calls: int
     selected_tools: list[str]
+    query: str
 
-def should_continue(state: MessagesState) -> Literal["tool_node", END]:
+def should_continue(state: MessagesState) -> Literal["tool_node", "update_memory_node"]:
     """Decide if we should continue the loop or stop based upon whether the LLM made a tool call"""
 
     messages = state["messages"]
@@ -29,18 +32,23 @@ def should_continue(state: MessagesState) -> Literal["tool_node", END]:
         return "tool_node"
 
     # Otherwise, we stop (reply to the user)
-    return END
+    return "update_memory_node"
 
 def getLLMCallWithModel(model):
-    async def llm_call(state: dict):
+    async def llm_call(state: dict, config: RunnableConfig):
         """LLM decides whether to call a tool or not"""
 
+        user_id = config["configurable"]["user_id"]
+
+        memories = getMemoriesForUserBasedOnQuery(user_id, state["query"])
+        memories_info = "\n".join(memories)
+        print(f"Memories:\n\n {memories_info} \n\n")
         # Map tool IDs to actual tools
         # based on the state's selected_tools list.
         tool_registry = get_tool_registry()
         selected_tools = [tool_registry[id] for id in state["selected_tools"]]
 
-        print(f"Selected tools: {selected_tools}")
+        print(f"Selected tools:\n\n {selected_tools} \n\n")
         model_with_tools = model.bind_tools(selected_tools)
 
         # Trim messages to stay under token limit
@@ -59,7 +67,12 @@ def getLLMCallWithModel(model):
                 model_with_tools.invoke(
                     [
                         SystemMessage(
-                            content="You are a helpful assistant tasked with performing operations on a private documentation tool: Adobe Wiki. Use the tools provided to you to perform the operations."
+                            content="You are a helpful assistant tasked with performing operations. You can use the tools provided to you if needed to perform the operations."
+                        )
+                    ]
+                    + [
+                        HumanMessage(
+                            content="Here are some memories from the past interactions with the user: " + memories_info + ". Whenever possible, try to answer the user's queries from the memories only and when the answer is not found in the memories, then only answer the query based on your knowledge or tools."
                         )
                     ]
                     + trimmed_messages
@@ -91,10 +104,44 @@ def getSemanticToolSearchNode():
         """Searches the vector store for tools related to the query"""
         query = state["messages"][-1].content
         results = get_tools_by_query(query)
-        return {"selected_tools": results}
+        return {"selected_tools": results, "query": query}
     return semantic_tool_search_node
 
-def getAgent(model, tools, checkpointer):
+def getUpdateMemoryNode(model):
+    async def update_memory_node(state: dict, config: RunnableConfig):
+        """Updates the memory store with the new memory"""
+        
+        # Extract last messages from the state after the last human message
+        filtered_messages = []
+        for msg in state["messages"][::-1]:
+            if isinstance(msg, HumanMessage):
+                filtered_messages.append(msg)
+                break
+            filtered_messages.append(msg)
+        
+        # Reverse the filtered messages
+        filtered_messages = filtered_messages[::-1]
+
+        memory_query_prompt = "Please prepare a short memory from the provided conversation. The memory should be a short summary of the provided conversation, and should be no more than 100 words. If the conversation contains the user's name or his/her interests, personal or professiona details, please include them in the memory for future recall. Also, save notable memories the user has shared with you for later recall. Do not include any other text in the response."
+        memory_query_prompt += "\n".join(["user: " + msg.content if isinstance(msg, HumanMessage) else "assistant: " + msg.content for msg in filtered_messages])
+        print(f"Memory query prompt:\n\n {memory_query_prompt} \n\n")
+        # Prepare the stringified memory to be stored in the memory store
+        stringified_memory = await model.ainvoke(
+            [
+                SystemMessage(
+                    content="You are a helpful assistant that can summarize the conversation into a short memory"
+                )
+            ]
+            + [HumanMessage(content=memory_query_prompt)]
+        )
+        print(f"Updating memory with:\n\n {stringified_memory.content} \n\n")
+
+        user_id = config["configurable"]["user_id"]
+        updateMemoryForUser(user_id, stringified_memory.content)
+        return {}
+    return update_memory_node
+
+def getAgent(model, tools, checkpointer, memory_store):
 
     # Build workflow
     agent_builder = StateGraph(MessagesState)
@@ -103,18 +150,19 @@ def getAgent(model, tools, checkpointer):
     agent_builder.add_node("llm_call", getLLMCallWithModel(model))
     agent_builder.add_node("tool_node", getToolNode(tools))
     agent_builder.add_node("semantic_tool_search_node", getSemanticToolSearchNode())
-
+    agent_builder.add_node("update_memory_node", getUpdateMemoryNode(model))
     # Add edges to connect nodes
     agent_builder.add_edge(START, "semantic_tool_search_node")
     agent_builder.add_edge("semantic_tool_search_node", "llm_call")
     agent_builder.add_conditional_edges(
         "llm_call",
         should_continue,
-        {"tool_node": "tool_node", END: END}
+        {"tool_node": "tool_node", "update_memory_node": "update_memory_node"}
     )
     agent_builder.add_edge("tool_node", "llm_call")
+    agent_builder.add_edge("update_memory_node", END)
 
     # Compile the agent
-    agent = agent_builder.compile(checkpointer=checkpointer)
+    agent = agent_builder.compile(checkpointer=checkpointer, store=memory_store)
 
     return agent
