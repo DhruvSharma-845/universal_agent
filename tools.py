@@ -59,9 +59,11 @@ def getMCPServersConfig():
     return mcp_servers
 
 async def getTools():
-    mcpServersConfig = getMCPServersConfig()
-    client = MultiServerMCPClient(mcpServersConfig)
-    tools = await client.get_tools()
+    # mcpServersConfig = getMCPServersConfig()
+    # client = MultiServerMCPClient(mcpServersConfig)
+    # tools = await client.get_tools()
+
+    tools = []
 
     mathematical_tools = [add_numbers, multiply]
     tools.extend(mathematical_tools)

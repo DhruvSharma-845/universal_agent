@@ -108,6 +108,11 @@ def getSemanticToolSearchNode():
     return semantic_tool_search_node
 
 def getUpdateMemoryNode(model):
+
+    async def memory_creator(prompt) -> str:
+        memory_obj = await model.ainvoke(prompt)
+        return memory_obj.content
+    
     async def update_memory_node(state: dict, config: RunnableConfig):
         """Updates the memory store with the new memory"""
         
@@ -122,22 +127,8 @@ def getUpdateMemoryNode(model):
         # Reverse the filtered messages
         filtered_messages = filtered_messages[::-1]
 
-        memory_query_prompt = "Please prepare a short memory from the provided conversation. The memory should be a short summary of the provided conversation, and should be no more than 100 words. If the conversation contains the user's name or his/her interests, personal or professiona details, please include them in the memory for future recall. Also, save notable memories the user has shared with you for later recall. Do not include any other text in the response."
-        memory_query_prompt += "\n".join(["user: " + msg.content if isinstance(msg, HumanMessage) else "assistant: " + msg.content for msg in filtered_messages])
-        print(f"Memory query prompt:\n\n {memory_query_prompt} \n\n")
-        # Prepare the stringified memory to be stored in the memory store
-        stringified_memory = await model.ainvoke(
-            [
-                SystemMessage(
-                    content="You are a helpful assistant that can summarize the conversation into a short memory"
-                )
-            ]
-            + [HumanMessage(content=memory_query_prompt)]
-        )
-        print(f"Updating memory with:\n\n {stringified_memory.content} \n\n")
-
         user_id = config["configurable"]["user_id"]
-        updateMemoryForUser(user_id, stringified_memory.content)
+        await updateMemoryForUser(user_id, filtered_messages, memory_creator)
         return {}
     return update_memory_node
 

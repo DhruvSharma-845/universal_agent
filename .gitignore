@@ -11,3 +11,12 @@ wheels/
 
 # App Configurations
 config.toml
+
+# checkpointer
+checkpoints*
+
+# logs
+*.log
+
+# FAISS memory store
+faiss_memory/
