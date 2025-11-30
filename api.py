@@ -1,3 +1,4 @@
+import json
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware 
 
@@ -8,7 +9,6 @@ from fastapi.responses import StreamingResponse
 from app_bootstrapper import bootstrap_app, destroy_app
 from conversation_service import chat_with_agent, chat_with_agent_stream_generator, get_all_conversation_ids, get_conversation_history_from_agent
 from dto import ChatRequest, ConversationHistory
-from utils import get_messages_details
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -42,8 +42,19 @@ async def universal_agent_chat(request: ChatRequest) -> ConversationHistory:
 
 @app.post("/api/universal-agent/chat/stream")
 async def universal_agent_chat_stream(request: ChatRequest) -> StreamingResponse:
+    async def chat_stream_generator(request: ChatRequest):
+        try:
+            async for chunk in chat_with_agent_stream_generator(
+                thread_id=request.thread_id,
+                input_messages=request.messages,
+                user_id=request.user_id
+            ):
+                yield f"data: {chunk.model_dump_json()}\n\n"
+        except Exception as e:
+            yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
+
     return StreamingResponse(
-        chat_with_agent_stream_generator(request.thread_id, request.messages, request.user_id),
+        chat_stream_generator(request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

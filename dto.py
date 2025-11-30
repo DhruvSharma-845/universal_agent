@@ -1,14 +1,19 @@
+from datetime import datetime
+from typing import Any, List, Literal, Optional, Dict
 from pydantic import BaseModel
 
+class MessageDetail(BaseModel):
+    id: Optional[str] = None
+    role: Literal["user", "assistant", "system", "tool"]
+    content: str
+    name: Optional[str] = None
+    tool_call_id: Optional[str] = None
+    tool_calls: Optional[List[Dict[str, Any]]] = None
+
 class ChatRequest(BaseModel):
-    messages: list[str]
+    messages: list[MessageDetail]
     thread_id: str
     user_id: str
-
-class MessageDetail(BaseModel):
-    id: str
-    role: str
-    content: str
 
 class ConversationHistory(BaseModel):
     thread_id: str
