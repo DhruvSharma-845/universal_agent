@@ -67,12 +67,12 @@ def getLLMCallWithModel(model):
                 model_with_tools.invoke(
                     [
                         SystemMessage(
-                            content="You are a helpful assistant tasked with performing operations. You can use the tools provided to you if needed to perform the operations."
-                        )
-                    ]
-                    + [
-                        HumanMessage(
-                            content="Here are some memories from the past interactions with the user: " + memories_info + ". Whenever possible, try to answer the user's queries from the memories only and when the answer is not found in the memories, then only answer the query based on your knowledge or tools."
+                            content=f"""
+You are a helpful assistant tasked with performing operations. You can use the tools provided to you if needed to perform the operations."
+Here are some relevant memories from the past interactions with the user: {memories_info}.
+IMPORTANT: When you receive a tool result (ToolMessage), you MUST use that information in your response. Tool results contain fresh, up-to-date information that should take priority in your answer.
+Provider clear and helpful answer in english language. Do not output JSON.
+"""
                         )
                     ]
                     + trimmed_messages
